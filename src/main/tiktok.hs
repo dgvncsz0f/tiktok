@@ -37,6 +37,7 @@ import TikTok.Plugins.Logger as Logger
 import TikTok.Plugins.Bitly as Bitly
 import TikTok.Plugins.Hudson as Hudson
 import TikTok.Plugins.Invite as Invite
+import TikTok.Plugins.Seen as Seen
 
 readBotConfig :: IO BotConfig
 readBotConfig = do { args <- getArgs
@@ -49,12 +50,14 @@ readBotConfig = do { args <- getArgs
                               hasBitly   = getWithDefault cfg "bitly_enabled" False
                               hasHudson  = getWithDefault cfg "hudson_enabled" False
                               hasInvite  = getWithDefault cfg "invite_enabled" True
+                              hasSeen    = getWithDefault cfg "seen_enabled" False
                               inviteWlst = concatMap unpackString (getWithDefault cfg "invite_whitelist" [])
                               loggerWlst = concatMap unpackString (getWithDefault cfg "logger_whitelist" [])
                           in map snd $ filter fst [ (hasLogger, Logger.new (getWithDefault cfg "logger_basedir" "/tmp/irclogs") loggerWlst)
                                                   , (hasBitly,  Bitly.new  (getWithDefault cfg "bitly_user" "tiktok") (getWithDefault cfg "bitly_apikey" "unknown"))
                                                   , (hasHudson, Hudson.new (Endpoint $ getWithDefault cfg "hudson_endpoint" "http://localhost/hudson"))
                                                   , (hasInvite, Invite.new inviteWlst)
+                                                  , (hasSeen,   Seen.new (withStringDBM $ getWithDefault cfg "seen_dbm" "/tmp/seen.dbm"))
                                                   ]
         
         botConfig cfg = BotConfig (getWithDefault cfg "irc_host" "irc.freenode.net")

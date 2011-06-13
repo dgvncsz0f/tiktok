@@ -35,12 +35,11 @@ import Data.Maybe
 import Network.SimpleIRC.Core
 import Network.SimpleIRC.Messages
 import System.Time
-import System.Time.Parse
-import System.Locale
 import System.FilePath
 import System.Directory
 import TikTok.Bot
 import TikTok.Plugins.ByteStringHelpers
+import TikTok.Plugins.CalendarTimeHelpers
 
 type Whitelist = [String]
 
@@ -53,7 +52,7 @@ new f w = Plugin (eventHandler $ Logger f w) "logging"
 
 eventHandler :: Logger -> Event -> Bot ()
 eventHandler l (EvtPrivmsg m)
-  | wantsTail m             = do { irc  <- asks ircConn
+  | wantsLast m             = do { irc  <- asks ircConn
                                  ; dest <- liftIO $ getDest irc m
                                  ; if (hasChannel m)
                                    then (liftIO $ getLog l (fromJust (mChan m))) >>= mapM_ (sayPrivmsg dest)
@@ -65,30 +64,12 @@ eventHandler l (EvtPart m)  = liftIO $ nowTime >>= \now -> gPutLog mMsg (formatP
 eventHandler l (EvtTopic m) = liftIO $ nowTime >>= \now -> gPutLog (fromJust . mChan) (formatTopic now) l m
 eventHandler _ _            = return ()
 
-wantsTail :: IrcMessage -> Bool
-wantsTail m = "!logtail" `B.isPrefixOf` mMsg m
+wantsLast :: IrcMessage -> Bool
+wantsLast m = "!logger last" `B.isPrefixOf` mMsg m
 
 shouldSkip :: IrcMessage -> Bool
 shouldSkip m = skipPrefix `B.isPrefixOf` mMsg m || isNothing (mChan m)
     
-nowTime :: IO CalendarTime
-nowTime = fmap toUTCTime getClockTime
-
-date :: CalendarTime -> String
-date = formatCalendarTime defaultTimeLocale "%Y%m%d"
-
-timestamp :: CalendarTime -> String
-timestamp = formatCalendarTime defaultTimeLocale "%Y%m%d%H%M%S"
-
-humanDate :: CalendarTime -> String
-humanDate = formatCalendarTime defaultTimeLocale "%Y-%m-%d"
-
-humanTime :: CalendarTime -> String
-humanTime = formatCalendarTime defaultTimeLocale "%H:%M"
-
-parseTimestamp :: String -> Maybe CalendarTime
-parseTimestamp = parseCalendarTime defaultTimeLocale "%Y%m%d%H%M%S"
-
 skipPrefix :: B.ByteString
 skipPrefix = "-- "
 
