@@ -58,7 +58,7 @@ readBotConfig = do { args <- getArgs
                                    loggerWlst = concatMap unpackString (getWithDefault cfg "logger_whitelist" [])
                           in core ++ (map snd $ filter fst [ (hasLogger, Logger.new (getWithDefault cfg "logger_basedir" "/tmp/irclogs") loggerWlst)
                                                            , (hasBitly,  Bitly.new  (getWithDefault cfg "bitly_user" "tiktok") (getWithDefault cfg "bitly_apikey" "unknown"))
-                                                           , (hasHudson, Hudson.new (Endpoint $ getWithDefault cfg "hudson_endpoint" "http://localhost/hudson"))
+                                                           , (hasHudson, Hudson.new (getWithDefault cfg "hudson_endpoint" "http://localhost/hudson"))
                                                            , (hasInvite, Invite.new inviteWlst)
                                                            , (hasSeen,   Seen.new (withStringDBM $ getWithDefault cfg "seen_dbm" "/tmp/seen.dbm"))
                                                            ])

@@ -26,8 +26,7 @@
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 module TikTok.Plugins.Hudson
-       ( Endpoint(..)
-       , new
+       ( new
        ) where
 
 import Control.Exception as E
@@ -43,7 +42,7 @@ import TikTok.Bot
 import TikTok.Plugins.ByteStringHelpers
 import TikTok.Plugins.JsonHelpers
 
-newtype Endpoint = Endpoint { endpoint :: String }
+type Endpoint = String
 
 type JobName = String
 
@@ -66,7 +65,7 @@ eventHandler e (EvtPrivmsg m)
        ; dest <- liftIO $ getDest irc m
        ; case (mMsg m)
          of "!hudson url"    -> 
-              sayPrivmsg dest (tobs $ endpoint e)
+              sayPrivmsg dest (tobs e)
             "!hudson status" -> 
               do { hstatus <- liftIO $ getStatus e
                  ; mapM_ (sayPrivmsg dest . tobs . show) hstatus
@@ -82,16 +81,19 @@ eventHandler e (EvtPrivmsg m)
 eventHandler _ _
   = return ()
 
+catchAll :: (MonadPlus m) => IO (m a) -> IO (m a)
+catchAll m = E.catch m (\(SomeException _) -> return mzero)
+
 getJobStatus :: Endpoint -> JobName -> IO (Maybe HudsonStatus)
-getJobStatus e j = E.catch (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody) (\(SomeException _) -> return Nothing)
-  where apiUrl = endpoint e ++ "/job/" ++ j ++ "/api/json"
+getJobStatus e j = catchAll (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody)
+  where apiUrl = e ++ "/job/" ++ j ++ "/api/json"
 
 getStatus :: Endpoint -> IO [HudsonStatus]
-getStatus e = do { rsp     <- simpleHTTP (getRequest apiUrl)
-                 ; jsonVal <- fmap readJSON (getResponseBody rsp)
-                 ; return $ head (maybeToList (fmap allStatus jsonVal))
-                 }
-  where apiUrl = endpoint e ++ "/api/json"
+getStatus e = catchAll $ do { rsp     <- simpleHTTP (getRequest apiUrl)
+                            ; jsonVal <- fmap readJSON (getResponseBody rsp)
+                            ; return $ head (maybeToList (fmap allStatus jsonVal))
+                            }
+  where apiUrl = e ++ "/api/json"
         
 withJob :: B.ByteString -> (B.ByteString -> Bot ()) -> Bot ()
 withJob raw f
