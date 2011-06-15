@@ -56,6 +56,7 @@ data Event = EvtPrivmsg IrcMessage
            | EvtQuit IrcMessage
            | EvtNotice IrcMessage
            | EvtDisconnect
+           | EvtTikOfInfinity
 
 data Plugin = Plugin { evhandler :: Event -> Bot ()
                      , name      :: String
@@ -118,13 +119,26 @@ waitDisconnect = do { s     <- asks ircConn
                     }
   where register s mutex = addEvent s (Disconnect $ \_ -> putMVar mutex ())
 
+sendTikOfInfinity :: Bot ()
+sendTikOfInfinity = do { myPlugins <- asks (plugins . config)
+                       ; mapM_ (\p -> evhandler p EvtTikOfInfinity) myPlugins
+                       }
+
+runTikOfInfinity :: TikTok -> IO ()
+runTikOfInfinity bot = forkIO (fix $ \loop -> do { threadDelay 60000000
+                                                 ; runReaderT sendTikOfInfinity bot
+                                                 ; loop
+                                                 }) 
+                       >> return ()
+
 runBot :: BotConfig -> IO ()
 runBot cfg = do { rc <- connect ircCfg True True
                 ; case rc
                   of Left e  -> fail (show e)
                      Right s -> let bot = TikTok cfg s sendCmdWithFloodCtrl
                                 in do { sendCmd s (MPrivmsg "nickserv" ("identify " `B.append` (tobs $ myPasswd cfg)))
-                                      ; _   <- mapM (\p -> forkIO $ runReaderT (runPlugin p) bot) (plugins cfg)
+                                      ; mapM_ (\p -> forkIO $ runReaderT (runPlugin p) bot) (plugins cfg)
+                                      ; runTikOfInfinity bot
                                       ; runReaderT waitDisconnect bot
                                       }
                 }

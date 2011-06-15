@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 -- Copyright (c) 2011, Diego Souza
 -- All rights reserved.
 -- 
@@ -42,12 +43,15 @@ import TikTok.Bot
 import TikTok.Plugins.ByteStringHelpers
 import TikTok.Plugins.JsonHelpers
 
+data HudsonPlugin = HudsonPlugin { endpoint :: String }
+
 type Endpoint = String
 
 type JobName = String
 
 data Status = Bad
             | Good
+            deriving (Ord,Eq)
 
 newtype LJenkinsStatus = LJenkinsStatus { allStatus :: [JenkinsStatus] }
 
@@ -57,22 +61,25 @@ data JenkinsStatus = JenkinsStatus { jobName   :: JobName
                                    }
 
 new :: Endpoint -> Plugin
-new e = Plugin (eventHandler e) "hudson"
+new e = Plugin (eventHandler (HudsonPlugin e)) "hudson"
 
-eventHandler :: Endpoint -> Event -> Bot ()
-eventHandler e (EvtPrivmsg m) 
+sameStatus :: JenkinsStatus -> JenkinsStatus -> Bool
+sameStatus j0 j1 = (jobStatus j0) == (jobStatus j1)
+
+eventHandler :: HudsonPlugin -> Event -> Bot ()
+eventHandler hp (EvtPrivmsg m) 
   = do { irc  <- asks ircConn
        ; dest <- liftIO $ getDest irc m
        ; case (mMsg m)
          of "!hudson url"    -> 
-              sayPrivmsg dest (tobs e)
+              sayPrivmsg dest (tobs $ endpoint hp)
             "!hudson status" -> 
-              do { hstatus <- liftIO $ getStatus e
+              do { hstatus <- liftIO $ getStatus hp
                  ; mapM_ (sayPrivmsg dest . tobs . show) hstatus
                  ; sayPrivmsg dest "-- *** --"
                  }
             mjob             ->
-              withJob mjob $ \j -> do { mstatus <- liftIO $ getJobStatus e (frombs j)
+              withJob mjob $ \j -> do { mstatus <- liftIO $ getJobStatus hp (frombs j)
                                       ; case mstatus
                                         of Nothing -> return ()
                                            Just st -> sayPrivmsg dest (tobs $ show st)
@@ -81,19 +88,19 @@ eventHandler e (EvtPrivmsg m)
 eventHandler _ _
   = return ()
 
-catchAll :: (MonadPlus m) => IO (m a) -> IO (m a)
-catchAll m = E.catch m (\(SomeException _) -> return mzero)
+ignoreErrors :: (MonadPlus m) => IO (m a) -> IO (m a)
+ignoreErrors m = E.catch m (\(SomeException _) -> return mzero)
 
-getJobStatus :: Endpoint -> JobName -> IO (Maybe JenkinsStatus)
-getJobStatus e j = catchAll (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody)
-  where apiUrl = e ++ "/job/" ++ j ++ "/api/json"
+getJobStatus :: HudsonPlugin -> JobName -> IO (Maybe JenkinsStatus)
+getJobStatus hp j = ignoreErrors (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody)
+  where apiUrl = (endpoint hp) ++ "/job/" ++ j ++ "/api/json"
 
-getStatus :: Endpoint -> IO [JenkinsStatus]
-getStatus e = catchAll $ do { rsp     <- simpleHTTP (getRequest apiUrl)
-                            ; jsonVal <- fmap readJSON (getResponseBody rsp)
-                            ; return $ head (maybeToList (fmap allStatus jsonVal))
-                            }
-  where apiUrl = e ++ "/api/json"
+getStatus :: HudsonPlugin -> IO [JenkinsStatus]
+getStatus hp = ignoreErrors $ do { rsp     <- simpleHTTP (getRequest apiUrl)
+                                 ; jsonVal <- fmap readJSON (getResponseBody rsp)
+                                 ; return $ head (maybeToList (fmap allStatus jsonVal))
+                                 }
+  where apiUrl = (endpoint hp) ++ "/api/json"
         
 withJob :: B.ByteString -> (B.ByteString -> Bot ()) -> Bot ()
 withJob raw f

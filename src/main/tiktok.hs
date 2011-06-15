@@ -56,11 +56,11 @@ readBotConfig = do { args <- getArgs
                                    hasSeen    = getWithDefault cfg "seen_enabled" False
                                    inviteWlst = concatMap unpackString (getWithDefault cfg "invite_whitelist" [])
                                    loggerWlst = concatMap unpackString (getWithDefault cfg "logger_whitelist" [])
-                          in core ++ (map snd $ filter fst [ (hasLogger,  Logger.new (getWithDefault cfg "logger_basedir" "/tmp/irclogs") loggerWlst)
-                                                           , (hasBitly,   Bitly.new  (getWithDefault cfg "bitly_user" "tiktok") (getWithDefault cfg "bitly_apikey" "unknown"))
-                                                           , (hasJenkins, Jenkins.new (getWithDefault cfg "jenkins_endpoint" "http://localhost/jenkins"))
-                                                           , (hasInvite,  Invite.new inviteWlst)
-                                                           , (hasSeen,    Seen.new (withStringDBM $ getWithDefault cfg "seen_dbm" "/tmp/seen.dbm"))
+                          in core ++ (map snd $ filter fst [ (hasLogger,      Logger.new (getWithDefault cfg "logger_basedir" "/tmp/irclogs") loggerWlst)
+                                                           , (hasBitly,       Bitly.new  (getWithDefault cfg "bitly_user" "tiktok") (getWithDefault cfg "bitly_apikey" "unknown"))
+                                                           , (hasJenkins,     Jenkins.new (getWithDefault cfg "jenkins_endpoint" "http://localhost/jenkins"))
+                                                           , (hasInvite,      Invite.new inviteWlst)
+                                                           , (hasSeen,        Seen.new (withStringDBM $ getWithDefault cfg "seen_dbm" "/tmp/seen.dbm"))
                                                            ])
         
         botConfig now cfg = BotConfig (getWithDefault cfg "irc_host" "irc.freenode.net")
