@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- Copyright (c) 2011, Diego Souza
 -- All rights reserved.
 -- 
@@ -24,42 +25,30 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-module TikTok.Plugins.CalendarTimeHelpers where
+-- This is simply a copy with mutation of:
+-- http://www.haskell.org/haskellwiki/Roll_your_own_IRC_bot
 
-import Data.List (foldl')
-import Control.Arrow
+module TikTok.Plugins.Uptime  
+       ( new
+       ) where
+
+import Control.Monad.Reader
 import System.Time
-import System.Time.Parse
-import System.Locale
+import Network.SimpleIRC.Messages
+import Network.SimpleIRC.Core
+import TikTok.Bot
+import TikTok.Plugins.CalendarTimeHelpers
+import TikTok.Plugins.ByteStringHelpers
 
-nowTime :: IO CalendarTime
-nowTime = fmap toUTCTime getClockTime
+new :: ClockTime -> Plugin
+new start = Plugin (eventHandler start) "uptime"
 
-date :: CalendarTime -> String
-date = formatCalendarTime defaultTimeLocale "%Y%m%d"
-
-timestamp :: CalendarTime -> String
-timestamp = formatCalendarTime defaultTimeLocale "%Y%m%d%H%M%S"
-
-humanDate :: CalendarTime -> String
-humanDate = formatCalendarTime defaultTimeLocale "%Y-%m-%d"
-
-humanTime :: CalendarTime -> String
-humanTime = formatCalendarTime defaultTimeLocale "%H:%M"
-
-humanTimestamp :: CalendarTime -> String
-humanTimestamp c = humanDate c ++ " " ++ humanTime c
-
-parseTimestamp :: String -> Maybe CalendarTime
-parseTimestamp = parseCalendarTime defaultTimeLocale "%Y%m%d%H%M%S"
-
--- | Credits: http://www.haskell.org/haskellwiki/Roll_your_own_IRC_bot
-pretty :: TimeDiff -> String
-pretty td =
-  unwords $ map (uncurry (++) . first show) $
-  if null diffs then [(0,"s")] else diffs
-  where merge (tot,acc) (sec,typ) = let (sec',tot') = divMod tot sec
-                                    in (tot',(sec',typ):acc)
-        metrics = [(86400,"d"),(3600,"h"),(60,"m"),(1,"s")]
-        diffs = filter ((/= 0) . fst) $ reverse $ snd $
-                foldl' merge (tdSec td,[]) metrics
+eventHandler :: ClockTime -> Event -> Bot ()
+eventHandler start (EvtPrivmsg m)
+  | "!uptime" == mMsg m = do { irc  <- asks ircConn
+                             ; now  <- liftIO getClockTime
+                             ; dest <- liftIO $ getDest irc m
+                             ; sayPrivmsg dest (tobs $ pretty (diffClockTimes now start))
+                             }
+  | otherwise           = return ()
+eventHandler _ _        = return ()

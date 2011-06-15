@@ -30,6 +30,7 @@ module TikTok.Plugins.Hudson
        , new
        ) where
 
+import Control.Exception as E
 import Control.Monad.Reader
 import Control.Applicative
 import qualified Data.ByteString as B
@@ -82,9 +83,7 @@ eventHandler _ _
   = return ()
 
 getJobStatus :: Endpoint -> JobName -> IO (Maybe HudsonStatus)
-getJobStatus e j = do { rsp <- simpleHTTP (getRequest apiUrl)
-                      ; fmap readJSON (getResponseBody rsp)
-                      }
+getJobStatus e j = E.catch (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody) (\(SomeException _) -> return Nothing)
   where apiUrl = endpoint e ++ "/job/" ++ j ++ "/api/json"
 
 getStatus :: Endpoint -> IO [HudsonStatus]

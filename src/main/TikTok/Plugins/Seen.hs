@@ -30,10 +30,13 @@ module TikTok.Plugins.Seen
        , withStringDBM
        ) where
 
+import Data.Maybe
+import Control.Applicative
 import Control.Monad.Reader
 import qualified Data.ByteString as B
 import Network.SimpleIRC.Messages
 import Network.SimpleIRC.Core
+import System.Time
 import Database.AnyDBM
 import Database.AnyDBM.StringDBM
 import TikTok.Bot
@@ -59,12 +62,17 @@ who m = B.drop 6 (mMsg m)
 
 eventHandler :: (AnyDBM a) => WithDBM a -> Event -> Bot ()
 eventHandler wdbm (EvtPrivmsg m)
-  | wantsRead m = do { irc <- asks ircConn 
+  | wantsRead m = do { irc   <- asks ircConn 
+                     ; now   <- liftIO getClockTime
                      ; dest  <- liftIO $ getDest irc m
                      ; wdbm $ \db -> do { mseen <- liftIO $ lookupA db (frombs $ who m)
                                         ; case mseen
                                           of Nothing   -> sayPrivmsg dest ("I haven't seen " `B.append` who m)
-                                             Just seen -> sayPrivmsg dest (formatSeen (who m) (read seen))
+                                             Just seen -> let (chan, rawtime) = read seen
+                                                              caltime         = parseTimestamp rawtime
+                                                              clocktime       = toClockTime <$> caltime
+                                                              difftime        = diffClockTimes <$> Just now <*> clocktime
+                                                          in when (isJust difftime) (sayPrivmsg dest (formatSeen (who m) (chan, fromJust difftime)))
                                         }
                      }
   | otherwise   = case (mNick m, mChan m)
@@ -77,12 +85,11 @@ eventHandler wdbm (EvtPrivmsg m)
 eventHandler _ _ 
   = return ()
 
-formatSeen :: B.ByteString -> (String, String) -> B.ByteString
-formatSeen nick (chan, rawtime) = let Just cal = parseTimestamp rawtime
-                                  in B.concat [ nick
-                                              , " was last heard speaking in "
-                                              , tobs chan 
-                                              , " "
-                                              , tobs $ humanTimestamp cal
-                                              , " TODO:make_this_more_human_friendly"
-                                              ]
+formatSeen :: B.ByteString -> (String, TimeDiff) -> B.ByteString
+formatSeen nick (chan, diff) = B.concat [ nick
+                                        , " was last heard speaking in "
+                                        , tobs chan 
+                                        , " "
+                                        , tobs $ pretty diff
+                                        , " ago"
+                                        ]
