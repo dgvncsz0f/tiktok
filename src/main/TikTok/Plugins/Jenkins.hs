@@ -25,7 +25,7 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-module TikTok.Plugins.Hudson
+module TikTok.Plugins.Jenkins
        ( new
        ) where
 
@@ -49,12 +49,12 @@ type JobName = String
 data Status = Bad
             | Good
 
-newtype LHudsonStatus = LHudsonStatus { allStatus :: [HudsonStatus] }
+newtype LJenkinsStatus = LJenkinsStatus { allStatus :: [JenkinsStatus] }
 
-data HudsonStatus = HudsonStatus { jobName   :: JobName
-                                 , jobStatus :: Status
-                                 , jobUrl    :: String
-                                 }
+data JenkinsStatus = JenkinsStatus { jobName   :: JobName
+                                   , jobStatus :: Status
+                                   , jobUrl    :: String
+                                   }
 
 new :: Endpoint -> Plugin
 new e = Plugin (eventHandler e) "hudson"
@@ -84,11 +84,11 @@ eventHandler _ _
 catchAll :: (MonadPlus m) => IO (m a) -> IO (m a)
 catchAll m = E.catch m (\(SomeException _) -> return mzero)
 
-getJobStatus :: Endpoint -> JobName -> IO (Maybe HudsonStatus)
+getJobStatus :: Endpoint -> JobName -> IO (Maybe JenkinsStatus)
 getJobStatus e j = catchAll (simpleHTTP (getRequest apiUrl) >>= fmap readJSON . getResponseBody)
   where apiUrl = e ++ "/job/" ++ j ++ "/api/json"
 
-getStatus :: Endpoint -> IO [HudsonStatus]
+getStatus :: Endpoint -> IO [JenkinsStatus]
 getStatus e = catchAll $ do { rsp     <- simpleHTTP (getRequest apiUrl)
                             ; jsonVal <- fmap readJSON (getResponseBody rsp)
                             ; return $ head (maybeToList (fmap allStatus jsonVal))
@@ -105,15 +105,15 @@ instance FromJSON Status where
   parseJSON (String _)      = return Bad
   parseJSON _               = mzero
 
-instance FromJSON HudsonStatus where
-  parseJSON (Object v) = HudsonStatus <$> v .: "name" <*> v .: "color" <*> v .: "url"
+instance FromJSON JenkinsStatus where
+  parseJSON (Object v) = JenkinsStatus <$> v .: "name" <*> v .: "color" <*> v .: "url"
   parseJSON _          = mzero
 
-instance FromJSON LHudsonStatus where
-  parseJSON (Object v) = LHudsonStatus <$> v .: "jobs"
+instance FromJSON LJenkinsStatus where
+  parseJSON (Object v) = LJenkinsStatus <$> v .: "jobs"
   parseJSON _          = mzero
 
-instance Show HudsonStatus where
+instance Show JenkinsStatus where
   show h = "-- " ++ jobName h ++ ": " ++ show (jobStatus h)
   
 instance Show Status where
