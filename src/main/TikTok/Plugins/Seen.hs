@@ -75,15 +75,25 @@ eventHandler wdbm (EvtPrivmsg m)
                                                           in when (isJust difftime) (sayPrivmsg dest (formatSeen (who m) (chan, fromJust difftime)))
                                         }
                      }
-  | otherwise   = case (mNick m, mChan m)
-                  of (Just nick, Just chan)
-                       -> wdbm $ \db -> liftIO $ do { time <- fmap timestamp nowTime
-                                                    ; insertA db (frombs nick) (show (frombs chan, time))
-                                                    }
-                     _
-                       -> return ()
-eventHandler _ _ 
-  = return ()
+  | otherwise   = replaceEntry wdbm m
+eventHandler wdbm evt 
+                = case evt
+                  of EvtJoin m  -> replaceEntry wdbm m
+                     EvtTopic m -> replaceEntry wdbm m
+                     EvtPart m  -> replaceEntry wdbm m
+                     _          -> return ()
+
+replaceEntry :: (AnyDBM a) => WithDBM a -> IrcMessage -> Bot ()
+replaceEntry wdbm m = case (mNick m, mChan m)
+                      of (Just nick, Just chan)
+                           -> do { time <- liftIO $ fmap timestamp nowTime
+                                 ; replaceEntry_ wdbm (frombs nick, show (frombs chan, time))
+                                 }
+                         _
+                           -> return ()
+
+replaceEntry_ :: (AnyDBM a) => WithDBM a -> (String,String) -> Bot ()
+replaceEntry_ wdbm (key,val) = wdbm (\db -> liftIO $ insertA db key val)
 
 formatSeen :: B.ByteString -> (String, TimeDiff) -> B.ByteString
 formatSeen nick (chan, diff) = B.concat [ nick
